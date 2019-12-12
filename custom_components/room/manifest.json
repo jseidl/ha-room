@@ -1,0 +1,8 @@
+{
+  "domain": "room",
+  "name": "Room",
+  "documentation": "https://github.com/jseidl/hass-room",
+  "dependencies": [],
+  "codeowners": ["@jseidl"],
+  "requirements": []
+}
