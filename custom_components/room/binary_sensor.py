@@ -115,7 +115,14 @@ class RoomPresenceHoldBinarySensor(BinarySensorDevice, RestoreEntity):
             return
 
         for sensor in self.room.presence_sensors:
-            if self.hass.states.get(sensor).state in self.room.on_states:
+
+            entity = self.hass.states.get(sensor)
+
+            if not entity:
+                _LOGGER.error(f"{sensor} entity is not found")
+                continue
+
+            if entity.state in self.room.on_states:
                 return
 
         self._state = False
@@ -125,7 +132,13 @@ class RoomPresenceHoldBinarySensor(BinarySensorDevice, RestoreEntity):
         # Loop over all entities and check their state
         for sensor in self.room.presence_sensors:
 
-            if self.hass.states.get(sensor).state in self.room.on_states:
+            entity = self.hass.states.get(sensor)
+
+            if not entity:
+                _LOGGER.error(f"{sensor} entity is not found")
+                continue
+
+            if entity.state in self.room.on_states:
                 self._state = True
                 return
         
