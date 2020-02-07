@@ -25,6 +25,30 @@ room:
     clear_timeout: 30
 ```
 
+### Dealing with discovery
+Room component needs to hook entity states at load time and discovered components are usually not available when room starts. In order to cope with that, it's recommended to group your discoverable presence sensors into groups and add those groups into the `presence_sensors` entry.
+
+If you wanna get fancy, you can create a template `binary_sensor` so you can have it be a proper motion sensor:
+```
+group:
+  motion_living_room:
+    name: Motion (Living Room)
+    entities:
+      - binary_sensor.motion_meistersensor_living_room
+      - binary_sensor.zooz_zse40_gamma_motion
+      - group.motion_dining_room
+      - binary_sensor.motion_blueiris_living_room
+      - binary_sensor.motion_blueiris_bookshelf
+
+binary_sensor:
+  - platform: template
+    sensors:
+      motion_living_room:
+        friendly_name: "Motion (Living Room)"
+        device_class: motion
+        value_template: "{{ is_state('group.motion_living_room', 'on') }}"
+```
+
 ### Default Options
 * `clear_timeout`: 5 (seconds)
 * `on_states`: `on`, `home` and `playing`
