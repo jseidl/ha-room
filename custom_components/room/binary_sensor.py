@@ -1,14 +1,14 @@
-DEPENDENCIES = ['room', 'binary_sensor']
+DEPENDENCIES = ['room', 'switch' 'binary_sensor']
 
 import logging
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from time import sleep
 
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.components.binary_sensor import BinarySensorDevice
 from homeassistant.helpers.event import track_state_change, call_later, track_time_interval 
-from homeassistant.const import (STATE_ON, STATE_OFF)
+from homeassistant.const import STATE_ON, STATE_OFF, STATE_HOME
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,12 +24,12 @@ def setup_platform(
     rooms = hass.data.get(DATA_ROOM)
 
     for room in rooms:   
-        add_entities([RoomPresenceHoldBinarySensor(hass, room)], True)
+        add_entities([RoomPresenceBinarySensor(hass, room)], True)
 
 def setup_entry(hass, config_entry, add_devices):
-    add_devices([RoomPresenceHoldBinarySensor(hass, {})], True)
+    add_devices([RoomPresenceBinarySensor(hass, {})], True)
 
-class RoomPresenceHoldBinarySensor(BinarySensorDevice, RestoreEntity):
+class RoomPresenceBinarySensor(BinarySensorDevice, RestoreEntity):
     def __init__(self, hass, room):
         """Initialize the presence hold switch."""
 
@@ -38,10 +38,11 @@ class RoomPresenceHoldBinarySensor(BinarySensorDevice, RestoreEntity):
         self._name = f"Room ({self.room.name})"
         self._state = None
         self._attributes = {}
+        self.last_off_time = datetime.utcnow()
 
-        track_state_change(hass, self.room.presence_sensors, self.update_room)
+        track_state_change(hass, self.room.presence_sensors, self.sensor_state_change)
         delta = timedelta(seconds=self.room.update_interval)
-        track_time_interval(self.hass, self.update_state, delta)
+        track_time_interval(self.hass, self.update_room, delta)
 
     @property
     def name(self):
@@ -82,53 +83,58 @@ class RoomPresenceHoldBinarySensor(BinarySensorDevice, RestoreEntity):
         if self._state is not None:
             return
 
-        self.update_state()
+        # Was having a race condition with the switch component of
+        # this integration. Better leave commented and let the 
+        # update_interval hook do the work
+        #self.update_state()
 
-    def update_room(self, entity_id, from_state, to_state):
+    def sensor_state_change(self, entity_id, from_state, to_state):
         try:
             _LOGGER.debug(entity_id + " change from " + str(from_state) + " to " + str(to_state))
 
             # If sensor is also a presence_hold_sensors, wait for the switch to come off
             if to_state.state == STATE_OFF:
+
+                self.last_off_time = datetime.utcnow() # Update last_off_time
+
                 if entity_id in self.room.presence_hold_sensors:
                     while True:
                         if self.hass.states.get(self.room.switch_id).state == STATE_OFF:
                             break
                         sleep(SLEEP_TIME)
 
-            # If presence_hold is on, do nothing
-            if self.hass.states.get(self.room.switch_id).state == STATE_ON:
-                return
-
             self.update_state()
-            self.schedule_update_ha_state()
-
-            call_later(self.hass, self.room.clear_timeout, self.sensor_timeout)
             
         except:
             pass
 
-    def sensor_timeout(self, event_time):
-        """ Check if there are ON sensors, if not clears room."""
+    def update_room(self, next_interval):
+
+        self.update_state()
+
+    def update_state(self):
+
         # If presence_hold is on, do nothing
         if self.hass.states.get(self.room.switch_id).state == STATE_ON:
             return
 
-        for sensor in self.room.presence_sensors:
+        room_state = self.get_room_state()
 
-            entity = self.hass.states.get(sensor)
+        if room_state:
+            self._state = True
+        else:
+            
+            clear_delta = timedelta(seconds=self.room.clear_timeout)
+            last_clear = self.last_off_time
+            clear_time = last_clear + clear_delta
+            time_now = datetime.utcnow()
 
-            if not entity:
-                _LOGGER.error(f"{sensor} entity is not found")
-                continue
+            if time_now >= clear_time:
+                self._state = False
 
-            if entity.state in self.room.on_states:
-                return
-
-        self._state = False
         self.schedule_update_ha_state()
 
-    def update_state(self, init=False):        
+    def get_room_state(self):        
         # Loop over all entities and check their state
         for sensor in self.room.presence_sensors:
 
@@ -139,8 +145,6 @@ class RoomPresenceHoldBinarySensor(BinarySensorDevice, RestoreEntity):
                 continue
 
             if entity.state in self.room.on_states:
-                self._state = True
-                return
-        
-        if self.room.clear_timeout == 0 or init:
-            self._state = False
+                return True
+
+        return False
