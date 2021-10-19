@@ -1,3 +1,5 @@
+# THIS IS NO LONGER MAINTAINED! HA-ROOM EVOLVED INTO [Magic Areas](https://github.com/jseidl/hass-magic_areas)!!
+
 # Room Presence
 
 This component lets you define rooms in your house and assign sensors that will trigger the presence occupied status (and clear when they are clear). A switch called "Presence Hold" will be created for each room you add that will prevent the occupancy status to change. This is really useful when you are watching TV sitting still and you don't want the room to be marked clear when your motion sensor stops detecting you, or when you're sleep and you don't want your lights coming up when you move. There's a parameter that defines which sensors will trigger/clear "Presence Hold" automatically.
